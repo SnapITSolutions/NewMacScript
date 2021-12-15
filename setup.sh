@@ -75,10 +75,10 @@ androidInstall=(
 
 # packages for Data Science developers
 dataScienceInstall=(
-    python3
+    python@3.9
     r
     anaconda
-    jupyter
+    jupyterlab
     rstudio
 )
 
@@ -99,14 +99,13 @@ shellInstall=(
 # packages for database management
 databaseInstall=(
     mysql
-    sqlite3
+    sqlite
     mysqlworkbench
     db-browser-for-sqlite
 )
 
 # packages for prototyping
 prototypingInstall=(
-    dia
     gimp
     imagemagick
     inkscape
@@ -142,7 +141,6 @@ fontInstall=(
     font-dm-serif-display
     font-dm-serif-text
     font-fantasque-sans-mono
-    font-fantasque-sans-mono-noloopk
     font-fira-code
     font-fira-mono
     font-go
@@ -194,7 +192,7 @@ initXCode () {
 }
 
 initHomebrew() {
-    if type -P brew
+    if type -P brew &> /dev/null
     then
         echo "Homebrew already installed!"
         echo "Updating Homebrew..."
@@ -228,29 +226,31 @@ cleanupHomebrew() {
 }
 
 installRuby() {
-    echo "Installing RVM..."
-    bash -c "$(curl -sSL https://get.rvm.io | bash -s stable --ruby)"
+    type -P rvm &> /dev/null || {
+        echo "Installing RVM..."
+        bash -c "$(curl -sSL https://get.rvm.io | bash -s stable --ruby)"
 
-    gem install rails
-    gem install bundler
+        gem install rails
+        gem install bundler
 
-    rvm docs generate-ri
+        rvm docs generate-ri
+    }
 }
 
 installNvm() {
-    echo "Installing NVM..."
-    bash -c "$(curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh)"
-    NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
-    export NVM_DIR
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    test -d "$HOME/.nvm" || {
+        echo "Installing NVM..."
+        bash -c "$(curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh)"
+    }
 }
 
 checkInstall() {
-    brew list --versions | grep "^$1 "
+    bash -c "brew list --formula --versions; brew list --cask --versions" | grep -q "^$1 " &> /dev/null
 }
 
 installApp() {
     pkg="$1"
+    cask="$2"
     if [[ $pkg == nvm ]]
     then
         installNvm
@@ -260,7 +260,12 @@ installApp() {
     else
         checkInstall "$pkg" || {
             echo "Installing $pkg..."
-            brew install "$pkg"
+            if [[ $cask -eq 0 ]]
+            then
+                brew install "$pkg"
+            else
+                brew install --cask "$pkg"
+            fi
         }
     fi
 }
@@ -272,75 +277,77 @@ makeTempFiles() {
         fontdir=/tmp/font$$
         mkdir -p $fontdir
     }
-    trap 'rm -rf $dialogtmpfile $vstmpfile $fontdir' SIGHUP SIGINT SIGTRAP SIGTERM
+    trap 'rm -rf $dialogtmpfile $vstmpfile $fontdir; return 1' SIGHUP SIGINT SIGTRAP SIGTERM
 }
 
 installBasePackages() {
+    echo "Installing base packages..."
     for pkg in "${baseInstall[@]}"
     do
-        installApp "$pkg"
+        installApp "$pkg" 0
     done
 }
 
 installPackages() {
+    echo "Installing packages..."
     for pkg in "${alwaysInstall[@]}"
     do
-        installApp "$pkg"
+        installApp "$pkg" 0
     done
     if [[ $installRuby -eq 1 ]]
     then
         for pkg in "${rubyInstall[@]}"
         do
-            installApp "$pkg"
+            installApp "$pkg" 0
         done
     fi
     if [[ $installReact -eq 1 ]]
     then
         for pkg in "${reactInstall[@]}"
         do
-            installApp "$pkg"
+            installApp "$pkg" 0
         done
     fi
     if [[ $installJava -eq 1 ]]
     then
         for pkg in "${javaInstall[@]}"
         do
-            installApp "$pkg"
+            installApp "$pkg" 0
         done
     fi
     if [[ $installAndroid -eq 1 ]]
     then
         for pkg in "${androidInstall[@]}"
         do
-            installApp "$pkg"
+            installApp "$pkg" 0
         done
     fi
     if [[ $installDataScience -eq 1 ]]
     then
         for pkg in "${dataScienceInstall[@]}"
         do
-            installApp "$pkg"
+            installApp "$pkg" 0
         done
     fi
     if [[ $installDevOps -eq 1 ]]
     then
         for pkg in "${devOpsInstall[@]}"
         do
-            installApp "$pkg"
+            installApp "$pkg" 0
         done
     fi
     if [[ $installShell -eq 1 ]]
     then
         for pkg in "${shellInstall[@]}"
         do
-            installApp "$pkg"
+            installApp "$pkg" 0
         done
     fi
     if [[ $installDatabase -eq 1 ]]
     then
         for pkg in "${databaseInstall[@]}"
         do
-            installApp "$pkg"
+            installApp "$pkg" 0
         done
         echo "Starting MySQL service..."
         brew services start mysql
@@ -349,28 +356,29 @@ installPackages() {
     then
         for pkg in "${prototypingInstall[@]}"
         do
-            installApp "$pkg"
+            installApp "$pkg" 1
         done
     fi
     for pkg in "${editorInstall[@]}"
     do
-        installApp "$pkg"
+        installApp "$pkg" 1
     done
     for pkg in "${browserInstall[@]}"
     do
-        installApp "$pkg"
+        installApp "$pkg" 1
     done
     for pkg in "${gitUiInstall[@]}"
     do
-        installApp "$pkg"
+        installApp "$pkg" 1
     done
     for pkg in "${optionalInstall[@]}"
     do
-        installApp "$pkg"
+        installApp "$pkg" 1
     done
 }
 
 installFonts() {
+    echo "Installing fonts..."
     for font in "${fontInstall[@]}"
     do
         checkInstall "$font" || brew install "$font"
@@ -541,9 +549,9 @@ installAllVSCodeExtensions () {
         fi
 
         if ((installed > 0)); then
-            g_success "$installed extensions installed"
+            echo "$installed extensions installed"
         else
-            g_info "No extensions to install"
+            echo "No extensions to install"
         fi
     }
 }
@@ -558,10 +566,8 @@ parseGitConfig() {
 }
 
 promptToStart() {
-    dialog --clear --backtitle "$title" --no-lines --yesno "Are you ready to begin the install process?" 10 40
-
-    result=$?
-    if [[ $result -ne 0 ]]
+    read -rp "Are you ready to begin the installation process? [y/n]: " yn
+    if [[ ${yn:0:1} != "y" && ${yn:0:1} != "Y" ]]
     then
         echo "Installer canceled!"
         exit 1
@@ -570,7 +576,7 @@ promptToStart() {
 
 promptForInfo() {
     while
-        dialog --clear --backtitle "$title" --form "Enter information for Git" 9 60 0 \
+        dialog --clear --backtitle "$title" --title "User Information" --form "Enter information for Git" 9 60 0 \
             "Full Name:" 1 1 "$name"   1 12 30 0 \
             "Email:"     2 1 "$email"  2 12 40 0 \
             "User ID:"   3 1 "$userId" 3 12 10 0 2> $dialogtmpfile
@@ -587,12 +593,12 @@ promptForInfo() {
         esac
         [[ "$name" == "" || "$email" == "" || "$userId" == "" ]]
     do
-        dialog --clear --backtitle "$title" --no-lines --title "Error[!]" --msgbox \
+        dialog --clear --backtitle "$title" --title "Error[!]" --msgbox \
             "\nAll fields are required. Please enter name, email, and user ID." 8 40
     done
 
     while
-        dialog --clear --backtitle "$title" --help-button --checklist \
+        dialog --clear --backtitle "$title" --title "Package Chooser" --help-button --checklist \
             "Choose Development Tools to Install\n\nHighlight a toolset and press Help to see the individual tools in the set." 19 50 9 \
             1 "Ruby Development" off \
             2 "React Development" off \
@@ -647,7 +653,7 @@ promptForInfo() {
         [[ $result -ne 0 ]]
     do : ; done
 
-    dialog --clear --backtitle "$title" --checklist \
+    dialog --clear --backtitle "$title" --title "IDE Chooser" --checklist \
         "Choose Editor(s)/IDE(s) to Install\n\nInstallers marked with * require a license to use." 19 60 9 \
         1 "Atom" off \
         2 "IntelliJ Idea" off \
@@ -686,7 +692,7 @@ promptForInfo() {
             ;;
     esac
 
-    dialog --clear --backtitle "$title" --checklist \
+    dialog --clear --backtitle "$title" --title "Browser Chooser" --checklist \
         "Choose Browser(s) to Install" 7 50 0 \
         1 "Firefox" off \
         2 "Google Chrome" off 2> $dialogtmpfile
@@ -709,7 +715,7 @@ promptForInfo() {
             ;;
     esac
 
-    dialog --clear --backtitle "$title" --checklist \
+    dialog --clear --backtitle "$title" --title "Git Manager Chooser" --checklist \
         "Choose application(s) to manage Git" 7 50 0 \
         1 "Fork" off \
         2 "GitKraken" off 2> $dialogtmpfile
@@ -732,7 +738,7 @@ promptForInfo() {
             ;;
     esac
 
-    dialog --clear --backtitle "$title" --item-help --checklist \
+    dialog --clear --backtitle "$title" --title "Application Chooser" --item-help --checklist \
         "Choose optional applications to install" 7 50 0 \
         1 "CPU Info" off "CPU Usage graph in the Menu Bar" \
         2 "Docker" off "Platform as a service virtualization" \
@@ -770,6 +776,8 @@ configureGit() {
 }
 
 configureMac() {
+    echo "Configuring Mac..."
+
     # Disable automatic capitalization as it’s annoying when typing code
     defaults write NSGlobalDomain NSAutomaticCapitalizationEnabled -bool false
 
@@ -787,6 +795,8 @@ configureMac() {
 }
 
 configureIterm2() {
+    echo "Configuring iTerm2..."
+
     # Load iTerm2 shell integration
     /bin/bash -c "$(curl -fsSL https://iterm2.com/shell_integration/install_shell_integration.sh)"
 }
@@ -810,5 +820,8 @@ configureIterm2
 cleanupHomebrew
 
 # TODO configure .bash_profile as needed
+#NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+#export NVM_DIR
+#[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
 echo "You're done!"
