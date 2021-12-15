@@ -1,93 +1,73 @@
 # NewMacScript
 
-Script for new Cerner Mac installations
+Script for new Mac installations.
 
 ## About
 
-This setup script is for setting up a new Cerner Mac with some of the basic applications needed.
+This setup script is for setting up a new Mac with applications needed by developers.
 
-Please feel free to alter this script to meet your specific needs, or correct any errors.
+Please feel free to alter this script to meet your specific needs.
 
-### Installation with Curl
+## Installation with Curl
 
-To install this script from a brand new Mac (fresh out of the box!) run the following command in terminal:
+To install this script from a brand new Mac (fresh out of the box!), open `Terminal` and run the following command.
 
 ``` shell
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/docedson/NewMacScript/main/setup.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/docedson/NewMacScript/main/setup.sh)"
 ```
 
-### Terminal Tools
+## Terminal Tools (Manual Installation)
 
 All of the following are commands that you can enter directly into Terminal or let the script run for you.
 
-Install the following terminal tools:
+### [Homebrew](https://brew.sh/)
 
-[Homebrew](https://brew.sh/)
+Homebrew is a third-party package manager for MacOS.
 
-  ``` shell
-  ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-  ```
+#### Install Homebrew
 
-Update Homebrew
+```shell
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew doctor
+```
 
-``` shell
-brew config
+#### Update Homebrew
+
+```shell
 brew update
 brew upgrade
 ```
 
-[iTerm2](https://www.iterm2.com/)
+### [iTerm2](https://www.iterm2.com/)
 
-  ``` shell
-  brew cask install iterm2
-  ```
+iTerm2 is a better terminal.
 
-[oh-my-zsh](https://ohmyz.sh/)
+```shell
+brew cask install iterm2
+```
 
-  ``` shell
-  sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
-  ```
+### Git
 
-Git
-
-``` shell
+```shell
 brew install git
 ```
 
-Ruby
+### Ruby
 
-``` shell
-brew install ruby
+Ruby is installed using `rvm`.
+
+```shell
+bash -c "$(curl -sSL https://get.rvm.io | bash -s stable --ruby)"
+gem install rails
+gem install bundler
 ```
 
-#### Enable Any Oh My Zsh Plugins
+### zsh
 
-Oh My Zsh comes with a ton of plugins you can take advantage of. Here is the [wiki](https://github.com/ohmyzsh/ohmyzsh/wiki/Plugins) page.
+zsh isn't installed by this script. For more details, see [this page](./zsh.md).
 
-Open your ``` ~/.zshrc ``` file via Terminal
+### more tools
 
-``` shell
-open ~/.zshrc
-```
+The setup script installs even more tools. Read through the script for more details!
 
-Find and edit the plugins section to add the ones you want
-
-``` shell
-# Example format: plugins=(rails git textmate ruby lighthouse)
-# Add wisely, as too many plugins slow down shell startup.
-plugins=(git brew ruby osx)
-```
-
-#### Set the Oh My Zsh Theme
-
-Open your ``` ~/.zshrc ``` file via Terminal
-
-``` shell
-open ~/.zshrc
-```
-
-Modify the theme. You can find a list of the themes [here](https://github.com/ohmyzsh/ohmyzsh/wiki/Themes.)
-
-Make sure to save and close the file after editing. You may have to quit and reopen iTerm2 for the theme to take effect.
-
-### The End
+## The End
