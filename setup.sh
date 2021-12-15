@@ -21,7 +21,6 @@ installShell=0
 baseInstall=(
     dialog
     dockutil
-    iterm2
     jq
     wget
 )
@@ -40,6 +39,7 @@ alwaysInstall=(
     gnupg
     htop
     openssh
+    iterm2
     zoom
 )
 
@@ -349,8 +349,6 @@ installPackages() {
         do
             installApp "$pkg" 0
         done
-        echo "Starting MySQL service..."
-        brew services start mysql
     fi
     if [[ $installPrototyping -eq 1 ]]
     then
@@ -377,6 +375,14 @@ installPackages() {
     done
 }
 
+startServices() {
+    if [[ $installDatabase -eq 1 ]]
+    then
+        echo "Starting MySQL service..."
+        brew services start mysql
+    fi
+}
+
 installFonts() {
     echo "Installing fonts..."
     for font in "${fontInstall[@]}"
@@ -385,12 +391,27 @@ installFonts() {
     done
 
     # Install fonts not available via Homebrew
-    wget -O "$fontdir"/DroidSansMono.ttf https://github.com/RPi-Distro/fonts-android/raw/master/DroidSansMono.ttf
-    cp -av "$fontdir"/DroidSansMono.ttf ~/Library/Fonts/
-    wget -O "$fontdir"/DroidSansMonoDotted.ttf https://github.com/AlbertoDorado/droid-sans-mono-zeromod/raw/master/DroidSansMonoDotted.ttf
-    cp -av "$fontdir"/DroidSansMonoDotted.ttf ~/Library/Fonts/
-    wget -O "$fontdir"/DroidSansMonoSlashed.ttf https://github.com/AlbertoDorado/droid-sans-mono-zeromod/raw/master/DroidSansMonoSlashed.ttf
-    cp -av "$fontdir"/DroidSansMonoSlashed.ttf ~/Library/Fonts/
+    if [ ! -f ~/Library/Fonts/DroidSansMono.ttf ]
+    then
+        echo "Installing DroidSansMono..."
+        wget -O "$fontdir"/DroidSansMono.ttf \
+            https://github.com/RPi-Distro/fonts-android/raw/master/DroidSansMono.ttf
+        cp -av "$fontdir"/DroidSansMono.ttf ~/Library/Fonts/
+    fi
+    if [ ! -f ~/Library/Fonts/DroidSansMonoDotted.ttf ]
+    then
+        echo "Installing DroidSansMonoDotted..."
+        wget -O "$fontdir"/DroidSansMonoDotted.ttf \
+            https://github.com/AlbertoDorado/droid-sans-mono-zeromod/raw/master/DroidSansMonoDotted.ttf
+        cp -av "$fontdir"/DroidSansMonoDotted.ttf ~/Library/Fonts/
+    fi
+    if [ ! -f ~/Library/Fonts/DroidSansMonoSlashed.ttf ]
+    then
+        echo "Installing DroidSansMonoSlashed..."
+        wget -O "$fontdir"/DroidSansMonoSlashed.ttf \
+            https://github.com/AlbertoDorado/droid-sans-mono-zeromod/raw/master/DroidSansMonoSlashed.ttf
+        cp -av "$fontdir"/DroidSansMonoSlashed.ttf ~/Library/Fonts/
+    fi
 
     fc-cache # rebuild the font cache
 }
@@ -654,17 +675,13 @@ promptForInfo() {
     do : ; done
 
     dialog --clear --backtitle "$title" --title "IDE Chooser" --checklist \
-        "Choose Editor(s)/IDE(s) to Install\n\nInstallers marked with * require a license to use." 19 60 9 \
+        "Choose Editor(s)/IDE(s) to Install\n\nInstallers marked with * require a license to use." 15 60 9 \
         1 "Atom" off \
         2 "IntelliJ Idea" off \
         3 "Eclipse Java" off \
         4 "MacVim" off \
         5 "PyCharm CE" off \
-        6 "Visual Studio Code" on \
-        7 "* RubyMine" off \
-        8 "* Sublime Text" off \
-        9 "* Visual Studio" off \
-        a "* WebStorm" off 2> $dialogtmpfile
+        6 "Visual Studio Code" on 2> $dialogtmpfile
 
     result=$?
     case $result in
@@ -679,10 +696,6 @@ promptForInfo() {
                     4) editorInstall+=( "macvim" ) ;;
                     5) editorInstall+=( "pycharm-ce" ) ;;
                     6) editorInstall+=( "visual-studio-code" ) ;;
-                    7) editorInstall+=( "rubymine" ) ;;
-                    8) editorInstall+=( "sublime-text" ) ;;
-                    9) editorInstall+=( "visual-studio" ) ;;
-                    a) editorInstall+=( "webstorm" ) ;;
                 esac
             done
             ;;
@@ -694,8 +707,8 @@ promptForInfo() {
 
     dialog --clear --backtitle "$title" --title "Browser Chooser" --checklist \
         "Choose Browser(s) to Install" 7 50 0 \
-        1 "Firefox" off \
-        2 "Google Chrome" off 2> $dialogtmpfile
+        1 "Firefox" on \
+        2 "Google Chrome" on 2> $dialogtmpfile
 
     result=$?
     case $result in
@@ -814,6 +827,7 @@ promptForInfo
 installPackages
 installFonts
 installAllVSCodeExtensions
+startServices
 configureGit
 configureMac
 configureIterm2
