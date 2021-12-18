@@ -5,6 +5,8 @@
 
 title="SnapIT MacOS Software Installer"
 
+shopt -s extglob # turn on extended pattern matching
+
 installAndroid=0
 installDataScience=0
 installDatabase=0
@@ -35,9 +37,11 @@ alwaysInstall=(
     gawk
     gnu-sed
     grep
+    gzip
+    unzip
     git
     gnupg
-    htop
+    docker
     openssh
     iterm2
     zoom
@@ -262,9 +266,9 @@ installApp() {
             echo "Installing $pkg..."
             if [[ $cask -eq 0 ]]
             then
-                brew install "$pkg"
+                brew install -q "$pkg"
             else
-                brew install --cask "$pkg"
+                brew install --cask -q "$pkg"
             fi
         }
     fi
@@ -371,7 +375,7 @@ installPackages() {
     done
     for pkg in "${optionalInstall[@]}"
     do
-        installApp "$pkg" 1
+        installApp "$pkg" 0
     done
 }
 
@@ -387,7 +391,10 @@ installFonts() {
     echo "Installing fonts..."
     for font in "${fontInstall[@]}"
     do
-        checkInstall "$font" || brew install "$font"
+        checkInstall "$font" || {
+            echo "Installing font: $font..."
+            brew install -q "$font"
+        }
     done
 
     # Install fonts not available via Homebrew
@@ -595,12 +602,40 @@ promptToStart() {
     fi
 }
 
+processPackageList() {
+    installAndroid=0
+    installDataScience=0
+    installDatabase=0
+    installDevOps=0
+    installPrototyping=0
+    installJava=0
+    installReact=0
+    installShell=0
+    IFS=$'\n' read -d '' -r -a packageList < "$dialogtmpfile"
+    for pack in "${packageList[@]}"
+    do
+        case $pack in
+            1) installRuby=1 ;;
+            2) installReact=1 ;;
+            3) installJava=1 ;;
+            4) installAndroid=1 ;;
+            5) installDataScience=1 ;;
+            6) installDevOps=1 ;;
+            7) installDatabase=1 ;;
+            8) installShell ;;
+            9) installPrototyping=1 ;;
+            HELP*) true ;; # ignore any HELP lines
+        esac
+    done
+}
+
 promptForInfo() {
     while
-        dialog --clear --backtitle "$title" --title "User Information" --form "Enter information for Git" 9 60 0 \
-            "Full Name:" 1 1 "$name"   1 12 30 0 \
-            "Email:"     2 1 "$email"  2 12 40 0 \
-            "User ID:"   3 1 "$userId" 3 12 10 0 2> $dialogtmpfile
+        dialog --clear --backtitle "$title" --title "User Information" --hline "Use TAB to navigate to buttons" \
+            --form "Enter information for Git" 9 60 0 \
+            "Full Name:" 1 1 "$name"   1 12 30 255 \
+            "Email:"     2 1 "$email"  2 12 40 255 \
+            "User ID:"   3 1 "$userId" 3 12 10 255 2> $dialogtmpfile
 
         result=$?
         case $result in
@@ -618,64 +653,65 @@ promptForInfo() {
             "\nAll fields are required. Please enter name, email, and user ID." 8 40
     done
 
+    defaultItem=1
     while
-        dialog --clear --backtitle "$title" --title "Package Chooser" --help-button --checklist \
-            "Choose Development Tools to Install\n\nHighlight a toolset and press Help to see the individual tools in the set." 19 50 9 \
-            1 "Ruby Development" off \
-            2 "React Development" off \
-            3 "Java Development" off \
-            4 "Android Development" off \
-            5 "Data Science" off \
-            6 "DevOps" off \
-            7 "Database Management" off \
-            8 "Shell Scripting" off \
-            9 "Prototype Design" off 2> $dialogtmpfile
+        if [[ $installRuby -eq 1 ]] ; then flagRuby="on" ; else flagRuby="off" ; fi
+        if [[ $installReact -eq 1 ]] ; then flagReact="on" ; else flagReact="off" ; fi
+        if [[ $installJava -eq 1 ]] ; then flagJava="on" ; else flagJava="off" ; fi
+        if [[ $installAndroid -eq 1 ]] ; then flagAndroid="on" ; else flagAndroid="off" ; fi
+        if [[ $installDataScience -eq 1 ]] ; then flagDataScience="on" ; else flagDataScience="off" ; fi
+        if [[ $installDevOps -eq 1 ]] ; then flagDevOps="on" ; else flagDevOps="off" ; fi
+        if [[ $installDatabase -eq 1 ]] ; then flagDatabase="on" ; else flagDatabase="off" ; fi
+        if [[ $installShell -eq 1 ]] ; then flagShell="on" ; else flagShell="off" ; fi
+        if [[ $installPrototyping -eq 1 ]] ; then flagPrototyping="on" ; else flagPrototyping="off" ; fi
+        dialog --clear --backtitle "$title" --title "Package Chooser" --default-item "$defaultItem" \
+            --help-button --help-label "Details" --help-status --separate-output \
+            --checklist \
+            "Choose Development Tools to Install\n\nUse SPACE to select, arrows to navigate, \
+            ENTER when done. Press Details to see the \nindividual tools in the set." 20 50 9 \
+            1 "Ruby Development" "$flagRuby" \
+            2 "React Development" "$flagReact" \
+            3 "Java Development" "$flagJava" \
+            4 "Android Development" "$flagAndroid" \
+            5 "Data Science" "$flagDataScience" \
+            6 "DevOps" "$flagDevOps" \
+            7 "Database Management" "$flagDatabase" \
+            8 "Shell Scripting" "$flagShell" \
+            9 "Prototype Design" "$flagPrototyping" 2> $dialogtmpfile
 
         result=$?
         case $result in
             0)
-                IFS=" " read -r -a packageList < "$dialogtmpfile"
-                for pack in "${packageList[@]}"
-                do
-                    case $pack in
-                        1) installRuby=1 ;;
-                        2) installReact=1 ;;
-                        3) installJava=1 ;;
-                        4) installAndroid=1 ;;
-                        5) installDataScience=1 ;;
-                        6) installDevOps=1 ;;
-                        7) installDatabase=1 ;;
-                        8) installShell ;;
-                        9) installPrototyping=1 ;;
-                    esac
-                done
+                processPackageList
                 ;;
             2)
-                helpPrompt=$(<"$dialogtmpfile")
+                read -r helpPrompt < "$dialogtmpfile"
+                processPackageList
                 case $helpPrompt in
-                    "HELP 1") pack="Ruby Development"; IFS=$'\n' apps="${rubyInstall[*]}" ;;
-                    "HELP 2") pack="React Development"; IFS=$'\n' apps="${reactInstall[*]}" ;;
-                    "HELP 3") pack="Java Development"; IFS=$'\n' apps="${javaInstall[*]}" ;;
-                    "HELP 4") pack="Android Development"; IFS=$'\n' apps="${androidInstall[*]}" ;;
-                    "HELP 5") pack="Data Science"; IFS=$'\n' apps="${dataScienceInstall[*]}" ;;
-                    "HELP 6") pack="DevOps"; IFS=$'\n' apps="${devOpsInstall[*]}" ;;
-                    "HELP 7") pack="Database Management"; IFS=$'\n' apps="${databaseInstall[*]}" ;;
-                    "HELP 8") pack="Shell Scripting"; IFS=$'\n' apps="${shellInstall[*]}" ;;
-                    "HELP 9") pack="Prototype Design"; IFS=$'\n' apps="${prototypingInstall[*]}" ;;
+                    "HELP 1") pack="Ruby Development"; IFS=$'\n' apps="${rubyInstall[*]}"; defaultItem=1 ;;
+                    "HELP 2") pack="React Development"; IFS=$'\n' apps="${reactInstall[*]}"; defaultItem=2 ;;
+                    "HELP 3") pack="Java Development"; IFS=$'\n' apps="${javaInstall[*]}"; defaultItem=3 ;;
+                    "HELP 4") pack="Android Development"; IFS=$'\n' apps="${androidInstall[*]}"; defaultItem=4 ;;
+                    "HELP 5") pack="Data Science"; IFS=$'\n' apps="${dataScienceInstall[*]}"; defaultItem=5 ;;
+                    "HELP 6") pack="DevOps"; IFS=$'\n' apps="${devOpsInstall[*]}"; defaultItem=6 ;;
+                    "HELP 7") pack="Database Management"; IFS=$'\n' apps="${databaseInstall[*]}"; defaultItem=7 ;;
+                    "HELP 8") pack="Shell Scripting"; IFS=$'\n' apps="${shellInstall[*]}"; defaultItem=8 ;;
+                    "HELP 9") pack="Prototype Design"; IFS=$'\n' apps="${prototypingInstall[*]}"; defaultItem=9 ;;
                 esac
                 dialog --clear --backtitle "$title" --title "Package Info" --cr-wrap --msgbox \
                     "The following applications will be installed for $pack:\n\n$apps" 15 50
                 ;;
             *)
                 echo "Installer canceled!"
-                #exit 1
+                # TODO uncomment after testing
+                # exit 1
                 ;;
         esac
         [[ $result -ne 0 ]]
     do : ; done
 
     dialog --clear --backtitle "$title" --title "IDE Chooser" --checklist \
-        "Choose Editor(s)/IDE(s) to Install\n\nInstallers marked with * require a license to use." 15 60 9 \
+        "Choose Editor(s)/IDE(s) to Install" 15 60 9 \
         1 "Atom" off \
         2 "IntelliJ Idea" off \
         3 "Eclipse Java" off \
@@ -754,7 +790,7 @@ promptForInfo() {
     dialog --clear --backtitle "$title" --title "Application Chooser" --item-help --checklist \
         "Choose optional applications to install" 7 50 0 \
         1 "CPU Info" off "CPU Usage graph in the Menu Bar" \
-        2 "Docker" off "Platform as a service virtualization" \
+        2 "HTop" off "Interactive process viewer" \
         3 "MacDown" off "Markdown editor for MacOS" 2> $dialogtmpfile
 
     result=$?
@@ -765,7 +801,7 @@ promptForInfo() {
             do
                 case $pack in
                     1) optionalInstall+=( "cpuinfo" ) ;;
-                    2) optionalInstall+=( "docker" ) ;;
+                    2) optionalInstall+=( "htop" ) ;;
                     3) optionalInstall+=( "macdown" ) ;;
                 esac
             done
@@ -816,6 +852,9 @@ configureIterm2() {
 
 # Now that everything's defined, run the installer
 
+# shellcheck disable=SC2034
+HOMEBREW_NO_INSTALL_CLEANUP=1
+
 promptToStart
 makeTempFiles
 parseGitConfig
@@ -824,18 +863,22 @@ initHomebrew
 tapHomebrew
 installBasePackages
 promptForInfo
-installPackages
-installFonts
-installAllVSCodeExtensions
-startServices
-configureGit
-configureMac
-configureIterm2
-cleanupHomebrew
+(
+    installPackages
+    installFonts
+    installAllVSCodeExtensions
+    startServices
+    configureGit
+    configureMac
+    configureIterm2
+    cleanupHomebrew
+) | dialog --clear --backtitle "$title" --progressbox 18 70
+
+unset HOMEBREW_NO_INSTALL_CLEANUP
 
 # TODO configure .bash_profile as needed
 #NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
 #export NVM_DIR
 #[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-echo "You're done!"
+dialog --backtitle "$title" --infobox "\n\n      Installation Complete!" 7 40
