@@ -83,7 +83,7 @@ androidInstall=(
 
 # packages for Data Science developers
 dataScienceInstall=(
-    homebrew/cask/r
+    homebrew/core/r
     homebrew/cask/jupyterlab
     homebrew/cask/rstudio
 )
@@ -130,6 +130,28 @@ gitUiInstall=()
 
 # optional packages (filled in later)
 optionalInstall=()
+
+# items to add to the Dock
+dockItems=(
+    "iTerm"
+    "Postman"
+    "Android Studio"
+    "JupyterLab"
+    "RStudio"
+    "Atom"
+    "IntelliJ IDEA CE"
+    "Eclipse Java"
+    "MacDown"
+    "MacVim"
+    "PyCharm CE"
+    "Visual Studio Code"
+    "Firefox"
+    "Google Chrome"
+    "Fork"
+    "GitKraken"
+    "MySQLWorkbench"
+    "DB Browser for SQLite"
+)
 
 # Fonts to install (mostly monospaced)
 fontInstall=(
@@ -838,6 +860,15 @@ configureMac() {
 
     # Disable auto-correct as it’s annoying when typing code
     defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
+
+    # Add applications to Mac Dock
+    for item in "${dockItems[@]}"
+    do
+        if [ -e "/Applications/$item.app" ]
+        then
+            dockutil --find "$item" "$HOME" || dockutil --add "/Applications/$item.app"
+        fi
+    done
 }
 
 configureIterm2() {
