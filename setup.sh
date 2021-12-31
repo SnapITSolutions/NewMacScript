@@ -42,7 +42,7 @@ alwaysInstall=(
     unzip
     git
     gnupg
-    homebrew/cask/docker
+    python@3.9
     openssh
     homebrew/cask/iterm2
     homebrew/cask/zoom
@@ -50,6 +50,8 @@ alwaysInstall=(
 
 # Packages for Ruby/Rails developers
 rubyInstall=(
+    libyaml
+    zlib
     rvm
     homebrew/cask/postman
 )
@@ -59,6 +61,7 @@ reactInstall=(
     nvm
     node
     yarn
+    homebrew/cask/docker
     homebrew/cask/postman
 )
 
@@ -80,10 +83,8 @@ androidInstall=(
 
 # packages for Data Science developers
 dataScienceInstall=(
-    python@3.9
     homebrew/cask/r
-    homebrew/cask/anaconda
-    jupyterlab
+    homebrew/cask/jupyterlab
     homebrew/cask/rstudio
 )
 
@@ -239,8 +240,6 @@ initHomebrew() {
         brew upgrade -q
     else
         echo "Installing Homebrew..."
-        # installing brew needs to use sudo
-        SUDO_ASKPASS="$askpass" sudo -A true # run the GUI version of password prompt before running brew
         bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
         brew doctor
         brew update -q
@@ -257,7 +256,7 @@ tapHomebrew() {
     )
     for tap in "${taps[@]}"
     do
-        brew tap | grep -q "^${tap}$" || brew tap -q "${tap}"
+        brew tap | grep -q "^${tap}$" || brew tap "${tap}"
     done
 }
 
@@ -269,12 +268,7 @@ cleanupHomebrew() {
 installRuby() {
     type -P rvm &> /dev/null || {
         echo "Installing RVM..."
-        bash -c "$(curl -sSL https://get.rvm.io | bash -s stable --ruby)"
-
-        gem install rails
-        gem install bundler
-
-        rvm docs generate-ri
+        \curl -sSL https://get.rvm.io | bash -s stable --ruby --rails
     }
 }
 
@@ -300,11 +294,6 @@ installApp() {
     else
         checkInstall "$pkg" || {
             echo "Installing $pkg..."
-            if [ "$pkg" = "anaconda" ]
-            then
-                # This package needs to use sudo to install
-                SUDO_ASKPASS="$askpass" sudo -A true # run the GUI version of password prompt before running brew
-            fi
             brew install -q "$pkg"
         }
     fi
@@ -863,7 +852,7 @@ configureIterm2() {
 export HOMEBREW_NO_INSTALL_CLEANUP=1
 export HOMEBREW_NO_ENV_HINTS=1
 export HOMEBREW_UPDATE_PREINSTALL=0
-export HOMEBREW_INSTALL_BADGE="🧃"
+export HOMEBREW_INSTALL_BADGE=" 🧃 "
 
 promptToStart
 makeTempFiles
@@ -873,16 +862,15 @@ initHomebrew
 tapHomebrew
 installBasePackages
 promptForInfo
-(
-    installPackages
-    installFonts
-    installAllVSCodeExtensions
-    startServices
-    configureGit
-    configureMac
-    configureIterm2
-    cleanupHomebrew
-) | dialog --clear --backtitle "$title" --progressbox 18 70
+clear
+installPackages
+installFonts
+installAllVSCodeExtensions
+startServices
+configureGit
+configureMac
+configureIterm2
+cleanupHomebrew
 
 unset HOMEBREW_UPDATE_PREINSTALL
 unset HOMEBREW_NO_ENV_HINTS
@@ -893,5 +881,5 @@ unset HOMEBREW_NO_INSTALL_CLEANUP
 #export NVM_DIR
 #[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-dialog --backtitle "$title" --infobox "\n\n      Installation Complete!" 7 40
+echo "Installation complete."
 osascript -e "display notification \"Installation complete.\" with title \"$title\""
