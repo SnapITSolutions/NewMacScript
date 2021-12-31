@@ -25,6 +25,7 @@ baseInstall=(
     dockutil
     jq
     wget
+    subversion
 )
 
 # Always install these packages
@@ -41,16 +42,16 @@ alwaysInstall=(
     unzip
     git
     gnupg
-    docker
+    homebrew/cask/docker
     openssh
-    iterm2
-    zoom
+    homebrew/cask/iterm2
+    homebrew/cask/zoom
 )
 
 # Packages for Ruby/Rails developers
 rubyInstall=(
     rvm
-    postman
+    homebrew/cask/postman
 )
 
 # Packages for React developers
@@ -58,32 +59,32 @@ reactInstall=(
     nvm
     node
     yarn
-    postman
+    homebrew/cask/postman
 )
 
 # packages for Java developers
 javaInstall=(
-    oracle-jdk
-    oracle-jdk-javadoc
-    jdk-mission-control
-    postman
+    homebrew/cask/oracle-jdk
+    homebrew/cask/oracle-jdk-javadoc
+    homebrew/cask/jdk-mission-control
+    homebrew/cask/postman
 )
 
 # packages for Android developers
 androidInstall=(
     kotlin
-    android-file-transfer
-    android-platform-tools
-    android-studio
+    homebrew/cask/android-file-transfer
+    homebrew/cask/android-platform-tools
+    homebrew/cask/android-studio
 )
 
 # packages for Data Science developers
 dataScienceInstall=(
     python@3.9
-    r
-    anaconda
+    homebrew/cask/r
+    homebrew/cask/anaconda
     jupyterlab
-    rstudio
+    homebrew/cask/rstudio
 )
 
 # packages for devOps
@@ -97,24 +98,24 @@ devOpsInstall=(
 shellInstall=(
     bash
     bash-completion
-    powershell
+    homebrew/cask/powershell
 )
 
 # packages for database management
 databaseInstall=(
     mysql
     sqlite
-    mysqlworkbench
-    db-browser-for-sqlite
+    homebrew/cask/mysqlworkbench
+    homebrew/cask/db-browser-for-sqlite
 )
 
 # packages for prototyping
 prototypingInstall=(
-    gimp
+    homebrew/cask/gimp
     imagemagick
-    inkscape
-    miro
-    pencil
+    homebrew/cask/inkscape
+    homebrew/cask/miro
+    homebrew/cask/pencil
 )
 
 # editor and IDE packages (filled in later)
@@ -182,8 +183,42 @@ fontInstall=(
     font-ubuntu-mono
 )
 
+promptToStart() {
+    read -rp "Are you ready to begin the installation process? [y/n]: " yn
+    if [[ ${yn:0:1} != "y" && ${yn:0:1} != "Y" ]]
+    then
+        echo "Installer canceled!"
+        exit 1
+    fi
+}
+
+makeTempFiles() {
+    dialogtmpfile=$(mktemp -q 2>/dev/null) || dialogtmpfile=/tmp/dialog$$
+    vstmpfile=$(mktemp -q 2>/dev/null) || vstmpfile=/tmp/vscodeextensions$$
+        fontdir=$(mktemp -d -q 2>/dev/null) || {
+        fontdir=/tmp/font$$
+        mkdir -p $fontdir
+    }
+    askpass=$(mktemp --suff=.sh -q 2>/dev/null) || askpass=/tmp/askpass$$
+    cat >$askpass <<EOT
+#!/bin/bash
+pw="\$(osascript -e 'display dialog "Please enter your password:" default answer "" with hidden answer with title "Password"' -e 'text returned of result' 2>/dev/null)" && echo "\$pw"
+EOT
+    chmod +x $askpass
+    trap 'rm -rf $dialogtmpfile $vstmpfile $askpass $fontdir; return 1' SIGHUP SIGINT SIGTRAP SIGTERM
+}
+
+parseGitConfig() {
+    if [ -f "$HOME"/.gitconfig ]
+    then
+        name=$(sed -nr "/^\[user\]/ { :l /^[ \t]*name[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" ~/.gitconfig)
+        email=$(sed -nr "/^\[user\]/ { :l /^[ \t]*email[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" ~/.gitconfig)
+        userId=$(sed -nr "/^\[github\]/ { :l /^[ \t]*user[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" ~/.gitconfig)
+    fi
+}
+
 initXCode () {
-    if [[ -d "$('xcode-select' -print-path 2>/dev/null)" ]]
+    if [[ ! -d "$('xcode-select' -print-path 2>/dev/null)" ]]
     then
         echo "Initializing XCode Command Line Tools"
         xcode-select --install 2>/dev/null
@@ -204,6 +239,8 @@ initHomebrew() {
         brew upgrade -q
     else
         echo "Installing Homebrew..."
+        # installing brew needs to use sudo
+        SUDO_ASKPASS="$askpass" sudo -A true # run the GUI version of password prompt before running brew
         bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
         brew doctor
         brew update -q
@@ -254,7 +291,6 @@ checkInstall() {
 
 installApp() {
     pkg="$1"
-    cask="$2"
     if [[ $pkg == nvm ]]
     then
         installNvm
@@ -264,31 +300,21 @@ installApp() {
     else
         checkInstall "$pkg" || {
             echo "Installing $pkg..."
-            if [[ $cask -eq 0 ]]
+            if [ "$pkg" = "anaconda" ]
             then
-                brew install -q "$pkg"
-            else
-                brew install --cask -q "$pkg"
+                # This package needs to use sudo to install
+                SUDO_ASKPASS="$askpass" sudo -A true # run the GUI version of password prompt before running brew
             fi
+            brew install -q "$pkg"
         }
     fi
-}
-
-makeTempFiles() {
-    dialogtmpfile=$(mktemp -q 2>/dev/null) || dialogtmpfile=/tmp/dialog$$
-    vstmpfile=$(mktemp -q 2>/dev/null) || vstmpfile=/tmp/vscodeextensions$$
-        fontdir=$(mktemp -d -q 2>/dev/null) || {
-        fontdir=/tmp/font$$
-        mkdir -p $fontdir
-    }
-    trap 'rm -rf $dialogtmpfile $vstmpfile $fontdir; return 1' SIGHUP SIGINT SIGTRAP SIGTERM
 }
 
 installBasePackages() {
     echo "Installing base packages..."
     for pkg in "${baseInstall[@]}"
     do
-        installApp "$pkg" 0
+        installApp "$pkg"
     done
 }
 
@@ -296,86 +322,86 @@ installPackages() {
     echo "Installing packages..."
     for pkg in "${alwaysInstall[@]}"
     do
-        installApp "$pkg" 0
+        installApp "$pkg"
     done
     if [[ $installRuby -eq 1 ]]
     then
         for pkg in "${rubyInstall[@]}"
         do
-            installApp "$pkg" 0
+            installApp "$pkg"
         done
     fi
     if [[ $installReact -eq 1 ]]
     then
         for pkg in "${reactInstall[@]}"
         do
-            installApp "$pkg" 0
+            installApp "$pkg"
         done
     fi
     if [[ $installJava -eq 1 ]]
     then
         for pkg in "${javaInstall[@]}"
         do
-            installApp "$pkg" 0
+            installApp "$pkg"
         done
     fi
     if [[ $installAndroid -eq 1 ]]
     then
         for pkg in "${androidInstall[@]}"
         do
-            installApp "$pkg" 0
+            installApp "$pkg"
         done
     fi
     if [[ $installDataScience -eq 1 ]]
     then
         for pkg in "${dataScienceInstall[@]}"
         do
-            installApp "$pkg" 0
+            installApp "$pkg"
         done
     fi
     if [[ $installDevOps -eq 1 ]]
     then
         for pkg in "${devOpsInstall[@]}"
         do
-            installApp "$pkg" 0
+            installApp "$pkg"
         done
     fi
     if [[ $installShell -eq 1 ]]
     then
         for pkg in "${shellInstall[@]}"
         do
-            installApp "$pkg" 0
+            installApp "$pkg"
         done
     fi
     if [[ $installDatabase -eq 1 ]]
     then
         for pkg in "${databaseInstall[@]}"
         do
-            installApp "$pkg" 0
+            installApp "$pkg"
         done
     fi
     if [[ $installPrototyping -eq 1 ]]
     then
         for pkg in "${prototypingInstall[@]}"
         do
-            installApp "$pkg" 1
+            installApp "$pkg"
         done
     fi
     for pkg in "${editorInstall[@]}"
     do
-        installApp "$pkg" 1
+        installApp "$pkg"
     done
     for pkg in "${browserInstall[@]}"
     do
-        installApp "$pkg" 1
+        installApp "$pkg"
     done
     for pkg in "${gitUiInstall[@]}"
     do
-        installApp "$pkg" 1
+        installApp "$pkg"
     done
     for pkg in "${optionalInstall[@]}"
     do
-        installApp "$pkg" 0
+        installApp "$pkg"
     done
 }
 
@@ -401,21 +427,21 @@ installFonts() {
     if [ ! -f ~/Library/Fonts/DroidSansMono.ttf ]
     then
         echo "Installing DroidSansMono..."
-        wget -O "$fontdir"/DroidSansMono.ttf \
+        wget -q -O "$fontdir"/DroidSansMono.ttf \
             https://github.com/RPi-Distro/fonts-android/raw/master/DroidSansMono.ttf
         cp -av "$fontdir"/DroidSansMono.ttf ~/Library/Fonts/
     fi
     if [ ! -f ~/Library/Fonts/DroidSansMonoDotted.ttf ]
     then
         echo "Installing DroidSansMonoDotted..."
-        wget -O "$fontdir"/DroidSansMonoDotted.ttf \
+        wget -q -O "$fontdir"/DroidSansMonoDotted.ttf \
             https://github.com/AlbertoDorado/droid-sans-mono-zeromod/raw/master/DroidSansMonoDotted.ttf
         cp -av "$fontdir"/DroidSansMonoDotted.ttf ~/Library/Fonts/
     fi
     if [ ! -f ~/Library/Fonts/DroidSansMonoSlashed.ttf ]
     then
         echo "Installing DroidSansMonoSlashed..."
-        wget -O "$fontdir"/DroidSansMonoSlashed.ttf \
+        wget -q -O "$fontdir"/DroidSansMonoSlashed.ttf \
             https://github.com/AlbertoDorado/droid-sans-mono-zeromod/raw/master/DroidSansMonoSlashed.ttf
         cp -av "$fontdir"/DroidSansMonoSlashed.ttf ~/Library/Fonts/
     fi
@@ -584,24 +610,6 @@ installAllVSCodeExtensions () {
     }
 }
 
-parseGitConfig() {
-    if [ -f "$HOME"/.gitconfig ]
-    then
-        name=$(sed -nr "/^\[user\]/ { :l /^[ \t]*name[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" ~/.gitconfig)
-        email=$(sed -nr "/^\[user\]/ { :l /^[ \t]*email[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" ~/.gitconfig)
-        userId=$(sed -nr "/^\[github\]/ { :l /^[ \t]*user[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" ~/.gitconfig)
-    fi
-}
-
-promptToStart() {
-    read -rp "Are you ready to begin the installation process? [y/n]: " yn
-    if [[ ${yn:0:1} != "y" && ${yn:0:1} != "Y" ]]
-    then
-        echo "Installer canceled!"
-        exit 1
-    fi
-}
-
 processPackageList() {
     installAndroid=0
     installDataScience=0
@@ -726,12 +734,12 @@ promptForInfo() {
             for pack in "${packageList[@]}"
             do
                 case $pack in
-                    1) editorInstall+=( "atom" ) ;;
-                    2) editorInstall+=( "intellij-idea-ce" ) ;;
-                    3) editorInstall+=( "eclipse-java" ) ;;
-                    4) editorInstall+=( "macvim" ) ;;
-                    5) editorInstall+=( "pycharm-ce" ) ;;
-                    6) editorInstall+=( "visual-studio-code" ) ;;
+                    1) editorInstall+=( "homebrew/cask/atom" ) ;;
+                    2) editorInstall+=( "homebrew/cask/intellij-idea-ce" ) ;;
+                    3) editorInstall+=( "homebrew/cask/eclipse-java" ) ;;
+                    4) editorInstall+=( "homebrew/cask/macvim" ) ;;
+                    5) editorInstall+=( "homebrew/cask/pycharm-ce" ) ;;
+                    6) editorInstall+=( "homebrew/cask/visual-studio-code" ) ;;
                 esac
             done
             ;;
@@ -753,8 +761,8 @@ promptForInfo() {
             for pack in "${packageList[@]}"
             do
                 case $pack in
-                    1) browserInstall+=( "firefox" ) ;;
-                    2) browserInstall+=( "google-chrome" ) ;;
+                    1) browserInstall+=( "homebrew/cask/firefox" ) ;;
+                    2) browserInstall+=( "homebrew/cask/google-chrome" ) ;;
                 esac
             done
             ;;
@@ -776,8 +784,8 @@ promptForInfo() {
             for pack in "${packageList[@]}"
             do
                 case $pack in
-                    1) gitUiInstall+=( "fork" ) ;;
-                    2) gitUiInstall+=( "gitkraken" ) ;;
+                    1) gitUiInstall+=( "homebrew/cask/fork" ) ;;
+                    2) gitUiInstall+=( "homebrew/cask/gitkraken" ) ;;
                 esac
             done
             ;;
@@ -800,9 +808,9 @@ promptForInfo() {
             for pack in "${packageList[@]}"
             do
                 case $pack in
-                    1) optionalInstall+=( "cpuinfo" ) ;;
+                    1) optionalInstall+=( "homebrew/cask/cpuinfo" ) ;;
                     2) optionalInstall+=( "htop" ) ;;
-                    3) optionalInstall+=( "macdown" ) ;;
+                    3) optionalInstall+=( "homebrew/cask/macdown" ) ;;
                 esac
             done
             ;;
@@ -852,8 +860,10 @@ configureIterm2() {
 
 # Now that everything's defined, run the installer
 
-# shellcheck disable=SC2034
-HOMEBREW_NO_INSTALL_CLEANUP=1
+export HOMEBREW_NO_INSTALL_CLEANUP=1
+export HOMEBREW_NO_ENV_HINTS=1
+export HOMEBREW_UPDATE_PREINSTALL=0
+export HOMEBREW_INSTALL_BADGE="🧃"
 
 promptToStart
 makeTempFiles
@@ -874,6 +884,8 @@ promptForInfo
     cleanupHomebrew
 ) | dialog --clear --backtitle "$title" --progressbox 18 70
 
+unset HOMEBREW_UPDATE_PREINSTALL
+unset HOMEBREW_NO_ENV_HINTS
 unset HOMEBREW_NO_INSTALL_CLEANUP
 
 # TODO configure .bash_profile as needed
@@ -882,3 +894,4 @@ unset HOMEBREW_NO_INSTALL_CLEANUP
 #[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
 dialog --backtitle "$title" --infobox "\n\n      Installation Complete!" 7 40
+osascript -e "display notification \"Installation complete.\" with title \"$title\""
