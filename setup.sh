@@ -42,6 +42,7 @@ alwaysInstall=(
     unzip
     git
     gnupg
+    fontconfig
     python@3.9
     openssh
     homebrew/cask/iterm2
@@ -207,6 +208,14 @@ fontInstall=(
 )
 
 promptToStart() {
+    cat <<EOF
+
+$title
+
+This script will prompt for your password several times, as it installs
+applications which require admin access.
+
+EOF
     read -rp "Are you ready to begin the installation process? [y/n]: " yn
     if [[ ${yn:0:1} != "y" && ${yn:0:1} != "Y" ]]
     then
@@ -222,13 +231,7 @@ makeTempFiles() {
         fontdir=/tmp/font$$
         mkdir -p $fontdir
     }
-    askpass=$(mktemp --suff=.sh -q 2>/dev/null) || askpass=/tmp/askpass$$
-    cat >$askpass <<EOT
-#!/bin/bash
-pw="\$(osascript -e 'display dialog "Please enter your password:" default answer "" with hidden answer with title "Password"' -e 'text returned of result' 2>/dev/null)" && echo "\$pw"
-EOT
-    chmod +x $askpass
-    trap 'rm -rf $dialogtmpfile $vstmpfile $askpass $fontdir; return 1' SIGHUP SIGINT SIGTRAP SIGTERM
+    trap 'rm -rf $dialogtmpfile $vstmpfile $fontdir; return 1' SIGHUP SIGINT SIGTRAP SIGTERM
 }
 
 parseGitConfig() {
@@ -290,14 +293,27 @@ cleanupHomebrew() {
 installRuby() {
     type -P rvm &> /dev/null || {
         echo "Installing RVM..."
-        \curl -sSL https://get.rvm.io | bash -s stable --ruby --rails
+        touch "$HOME/.bashrc"
+        touch "$HOME/.zshrc"
+        command curl -sSL https://rvm.io/mpapis.asc | gpg --import -
+        command curl -sSL https://rvm.io/pkuczynski.asc | gpg --import -
+        command df -hcurl -sSL https://get.rvm.io | bash -s stable --ruby --rails
+        # TODO add rvm config to .bashrc and .zshrc
+# [ -s "$HOME/.rvm/scripts/rvm" ] && . "$HOME/.rvm/scripts/rvm"
     }
 }
 
 installNvm() {
     test -d "$HOME/.nvm" || {
         echo "Installing NVM..."
+        # The following scripts are needed for the nvm installer
+        touch "$HOME/.bashrc"
+        touch "$HOME/.zshrc"
         bash -c "$(curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh)"
+        # TODO add nvm config to .bashrc and .zshrc
+#NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+#export NVM_DIR
+#[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
     }
 }
 
@@ -722,8 +738,7 @@ promptForInfo() {
                 ;;
             *)
                 echo "Installer canceled!"
-                # TODO uncomment after testing
-                # exit 1
+                exit 1
                 ;;
         esac
         [[ $result -ne 0 ]]
@@ -866,7 +881,7 @@ configureMac() {
     do
         if [ -e "/Applications/$item.app" ]
         then
-            dockutil --find "$item" "$HOME" || dockutil --add "/Applications/$item.app"
+            (dockutil --find "$item" "$HOME" || dockutil --add "/Applications/$item.app") &> /dev/null
         fi
     done
 }
@@ -907,10 +922,16 @@ unset HOMEBREW_UPDATE_PREINSTALL
 unset HOMEBREW_NO_ENV_HINTS
 unset HOMEBREW_NO_INSTALL_CLEANUP
 
-# TODO configure .bash_profile as needed
-#NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
-#export NVM_DIR
-#[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+cat <<EOF
 
-echo "Installation complete."
-osascript -e "display notification \"Installation complete.\" with title \"$title\""
+To get a list of applications installed by this script, enter
+    brew list
+from your terminal. This list will include command-line
+applications (Formulae) as well as GUI applications and
+fonts (Casks).
+
+Installation complete!
+
+EOF
+
+osascript -e "display notification \"Installation complete"'!'"\" with title \"$title\""
