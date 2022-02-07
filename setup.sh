@@ -43,6 +43,7 @@ alwaysInstall=(
     git
     gnupg
     fontconfig
+    sqlite
     python@3.9
     openssh
     homebrew/cask/iterm2
@@ -106,7 +107,6 @@ shellInstall=(
 # packages for database management
 databaseInstall=(
     mysql
-    sqlite
     homebrew/cask/mysqlworkbench
     homebrew/cask/db-browser-for-sqlite
 )
@@ -290,6 +290,13 @@ cleanupHomebrew() {
     brew cleanup -q
 }
 
+setupRuby () {
+    grep "scripts/rvm" "$1" || {
+        # shellcheck disable=SC2016
+        echo '[ -s "$HOME/.rvm/scripts/rvm" ] && \. "$HOME/.rvm/scripts/rvm"'
+    } >> "$1"
+}
+
 installRuby() {
     type -P rvm &> /dev/null || {
         echo "Installing RVM..."
@@ -297,10 +304,24 @@ installRuby() {
         touch "$HOME/.zshrc"
         command curl -sSL https://rvm.io/mpapis.asc | gpg --import -
         command curl -sSL https://rvm.io/pkuczynski.asc | gpg --import -
-        command df -hcurl -sSL https://get.rvm.io | bash -s stable --ruby --rails
-        # TODO add rvm config to .bashrc and .zshrc
-# [ -s "$HOME/.rvm/scripts/rvm" ] && . "$HOME/.rvm/scripts/rvm"
+        command curl -sSL https://get.rvm.io | bash -s stable --ruby --rails
+        setupRuby "$HOME/.bash_profile"
+        setupRuby "$HOME/.zlogin"
     }
+}
+
+setupNvm() {
+    grep NVM_DIR "$1" || {
+        # shellcheck disable=SC2016
+        echo 'NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"'
+        echo 'export NVM_DIR'
+        # shellcheck disable=SC2016
+        echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'
+    } >> "$1"
+    grep "NVM_DIR/bash_completion" "$1" || {
+        # shellcheck disable=SC2016
+        echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"'
+    } >> "$1"
 }
 
 installNvm() {
@@ -310,10 +331,8 @@ installNvm() {
         touch "$HOME/.bashrc"
         touch "$HOME/.zshrc"
         bash -c "$(curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh)"
-        # TODO add nvm config to .bashrc and .zshrc
-#NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
-#export NVM_DIR
-#[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        setupNvm "$HOME/.bashrc"
+        setupNvm "$HOME/.zshrc"
     }
 }
 
@@ -889,8 +908,13 @@ configureMac() {
 configureIterm2() {
     echo "Configuring iTerm2..."
 
-    # Load iTerm2 shell integration
-    /bin/bash -c "$(curl -fsSL https://iterm2.com/shell_integration/install_shell_integration.sh)"
+    # Load iTerm2 shell integration for both bash and zsh
+    curl -L https://iterm2.com/shell_integration/bash -o "$HOME/.iterm2_shell_integration.bash"
+    # shellcheck disable=SC2016
+    echo 'source "$HOME/.iterm2_shell_integration.bash"' >> "$HOME/.bash_profile"
+    curl -L https://iterm2.com/shell_integration/zsh -o "$HOME/.iterm2_shell_integration.zsh"
+    # shellcheck disable=SC2016
+    echo 'source "$HOME/.iterm2_shell_integration.zsh"' >> "$HOME/.zshrc"
 }
 
 # Now that everything's defined, run the installer
