@@ -13,7 +13,7 @@ Please feel free to alter this script to meet your specific needs.
 To install this script from a brand new Mac (fresh out of the box!), open `Terminal` and run the following command.
 
 ``` shell
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/staceybellerose/NewMacScript/main/setup.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/SnapITSolutions/NewMacScript/main/setup.sh)"
 ```
 
 ## Terminal Tools (Manual Installation)
